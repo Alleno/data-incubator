@@ -26,3 +26,4 @@ with requests.Session() as session:
 # , key = "AIzaSyCwusCGg3MmReI9TsBoFU0mbVriNJJQr2Q"
 with open(r"locations_dict.pickle", "wb") as f:
     pickle.dump((locations, locations_dict), f)
+
