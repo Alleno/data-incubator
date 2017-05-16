@@ -108,8 +108,6 @@ reformat_tech_2012 = reformat_tech_2012.loc[total_length+1:,:].stack()
 
 total_tech = reformat_tech_2011.append(reformat_tech_2012)
 
-survey2012.drop(tech, axis=1, inplace=True)
-
 #2013
 survey2013.rename(columns=rename_columns, inplace=True)
 tech = ['Which of the following languages or technologies have you used significantly in the past year?',
@@ -253,5 +251,63 @@ survey_combined = pd.DataFrame()
 for yr, df in zip(range(2011,2017),
                   [survey2011, survey2012, survey2013, survey2014, survey2015, survey2016]):
     df.to_csv("Survey Data/survey%s_cleaned.csv" % yr)
-    survey_combined = survey_combined.append(df)
+    for col in combined_years_columns:
+        if col not in df.columns:
+            df[col] = np.NaN
+    survey_combined = survey_combined.append(df[combined_years_columns])
 
+survey_combined.to_csv("Survey Data/survey_combined.csv")
+
+for df in [survey2011, survey2012, survey2013, survey2014, survey2015, survey2016]:
+    print("Australasia" in df.country.unique(), "Australia" in df.country.unique())
+
+world_bank = pd.read_csv("Data_Extract_From_World_Development_Indicators/GDP Data.csv")
+
+set(survey2016.country) - set(world_bank['Country Name'])
+set(world_bank['Country Name']) - set(survey2016.country)
+
+so_to_wb = {'Antigua & Deps': 'Antigua and Barbuda',
+ 'Bahamas': 'Bahamas, The',
+ 'Bosnia Herzegovina': 'Bosnia and Herzegovina',
+ 'Burkina': 'Burkina Faso',
+ 'Central African Rep': 'Central African Republic',
+ 'Egypt': 'Egypt, Arab Rep.',
+ 'Hong Kong': 'Hong Kong SAR, China',
+ 'Iran': 'Iran, Islamic Rep.',
+ 'Ireland {Republic}': 'Ireland',
+ 'Ivory Coast': "Cote d'Ivoire",
+ 'Korea North': 'Korea, Dem. People’s Rep.',
+ 'Korea South': 'Korea, Rep.',
+ 'Kyrgyzstan': 'Kyrgyz Republic',
+ 'Laos': 'Lao PDR',
+ 'Macedonia': 'Macedonia, FYR',
+ 'Micronesia': 'Micronesia, Fed. Sts.',
+ 'Myanmar, {Burma}':'Myanmar',
+ 'Palestine': 'West Bank and Gaza',
+ 'Sao Tome & Principe': 'Sao Tome and Principe',
+ 'Slovakia': 'Slovak Republic',
+ 'St Kitts & Nevis': 'St. Kitts and Nevis',
+ 'Syria': 'Syrian Arab Republic',
+ 'Trinidad & Tobago': 'Trinidad and Tobago',
+ 'Venezuela': 'Venezuela, RB',
+ 'Yemen': 'Yemen, Rep.'}
+
+wb_to_so = {i[1]:i[0] for i in so_to_wb.items()}
+
+world_bank['country'] = world_bank['Country Name']
+world_bank.replace({'country': wb_to_so}, inplace=True)
+set(survey2016.country) - set(world_bank.country)
+
+merge_data = world_bank.loc[world_bank['Series Name'] == 'GDP per capita (current US$)', ['country', '2015 [YR2015]']]
+merge_data.rename(columns = {"2015 [YR2015]": "GDP per capita 2015"}, inplace=True)
+survey2016 = pd.merge(survey2016,merge_data, on='country')
+
+survey2016['GDP per capita 2015'] = pd.to_numeric(survey2016['GDP per capita 2015'], errors='coerce')
+
+def salary_diff(x):
+    x.salary_midpoint.mean() - x['GDP per capita 2015'].mean()
+
+def mean_gdp(x):
+    x['GDP per capita 2015'].mean()
+
+survey2016.groupby('country').agg(salary_diff)
