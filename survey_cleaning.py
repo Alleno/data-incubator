@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import pickle
 def printf(x):
     pd.set_option('display.max_info_rows', len(x))
     print(x)
@@ -190,11 +191,11 @@ variable_availability.to_csv("variable_availability.csv")
 education = survey2016.education.str.split('; ',expand=True).stack()
 
 import matplotlib.pyplot as plt
-
+"""
 education.value_counts().plot(kind='barh', rot=0)
 plt.tight_layout()
 plt.savefig("output/hist_education.png")
-
+"""
 # Cant use a table here because of multiple overlaps:
 # If we use a count table on
 # wide format, we will have a len(education.unique()) dimensional table
@@ -226,6 +227,7 @@ for ed1 in education.unique():
         education_grid.loc[ed1,ed2] = np.sum(subset == ed2)/number_with_education
 
 education_grid = education_grid.astype(float)
+"""
 plt.close()
 fig, ax = plt.subplots(figsize=(10,10))
 plt.pcolor(education_grid)
@@ -234,7 +236,7 @@ plt.xticks(np.arange(0.5, len(education_grid.columns), 1), education_grid.column
 fig.subplots_adjust(bottom=.5,left=0.5)
 plt.colorbar()
 
-
+"""
 survey2016['highest_degree'] = "None"
 
 #attempt this with different orderings of degrees
@@ -256,6 +258,56 @@ for yr, df in zip(range(2011,2017),
             df[col] = np.NaN
     survey_combined = survey_combined.append(df[combined_years_columns])
 
+# TODO: Incomes are truncated, some years have higher ranges
+# use some kind of hazard model to estimate?
+# TODO: fix Other (please specify) category in 2016
+
+income_dict = {'$80,000 - $100,000': 90000,
+ '$20,000 - $40,000': 30000,
+ '$60,000 - $80,000': 70000,
+ '$40,000 - $60,000': 50000,
+ '>$140,000': 160000,
+ '$100,000 - $120,000': 110000,
+ '<$20,000': 30000,
+ '$120,000 - $140,000': 130000,
+ 'Less than $20,000': 10000,
+ '$140,000 - $160,000': 150000,
+ 'More than $160,000': 180000,
+ '$40,000 - $50,000': 45000,
+ 'Less than $10,000': 5000,
+ 'More than $200,000': 220000,
+ '$10,000 - $20,000': 15000,
+ '$90,000 - $100,000': 95000,
+ '$30,000 - $40,000': 35000,
+ '$20,000 - $30,000': 25000,
+ '$70,000 - $80,000': 75000,
+ '$80,000 - $90,000': 85000,
+ '$50,000 - $60,000': 55000,
+ '$60,000 - $70,000': 65000,
+ '$140,000 - $150,000': 145000,
+ '$130,000 - $140,000': 135000,
+ '$100,000 - $110,000': 105000,
+ '$110,000 - $120,000': 115000,
+ '$160,000 - $170,000': 165000,
+ '$180,000 - $190,000': 185000,
+ '$120,000 - $130,000': 110000,
+ '$150,000 - $160,000': 155000,
+ '$190,000 - $200,000': 195000,
+ '$170,000 - $180,000': 175000}
+
+survey_combined['salary_midpoint'] = survey_combined.income.map(income_dict)
+
+exper = \
+    {'<2',
+     '41310', '41435', '11', '41070', '40944',
+       '6/10/2013', '2/5/2013', '6/10/2014', '2/5/2014', '2 - 5 years',
+       '1 - 2 years', '6 - 10 years', '11+ years', 'Less than 1 year'}
+
+
+pickle.dump(total_tech.str.lower(), open("Survey Data/languages.pkl",'wb'))
+language_size = total_tech.reset_index().groupby('index')[0].size().rename("num_lang")
+survey_combined = pd.concat([survey_combined, language_size], axis=1)
+survey_combined.rename(columns={0:"num languages"})
 survey_combined.to_csv("Survey Data/survey_combined.csv")
 
 for df in [survey2011, survey2012, survey2013, survey2014, survey2015, survey2016]:
@@ -304,10 +356,18 @@ survey2016 = pd.merge(survey2016,merge_data, on='country')
 
 survey2016['GDP per capita 2015'] = pd.to_numeric(survey2016['GDP per capita 2015'], errors='coerce')
 
-def salary_diff(x):
-    x.salary_midpoint.mean() - x['GDP per capita 2015'].mean()
+pd.set_option('display.float_format', '{:,.0f}'.format)
+country_salary = survey2016.groupby('country').apply(lambda x: pd.Series([
+        x.salary_midpoint.mean(),
+        x['GDP per capita 2015'] .mean(),
+        x.salary_midpoint.mean() - x['GDP per capita 2015'] .mean(),
+        len(x.salary_midpoint)])).rename(columns={0:'avg. developer salary',
+                                                  1:'gdp per cap',
+                                                  2:'salary diff',
+                                                  3:'sample size'})
 
-def mean_gdp(x):
-    x['GDP per capita 2015'].mean()
+country_salary.to_csv("output/salary_gdp2016.csv")
 
-survey2016.groupby('country').agg(salary_diff)
+regdata = survey_combined[['yrs_exp','country', 'salary_midpoint']].dropna()
+
+lm.fit(pd.get_dummies(regdata[['yrs_exp','country', '']]),regdata['salary_midpoint'])
