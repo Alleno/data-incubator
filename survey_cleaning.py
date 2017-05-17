@@ -308,7 +308,7 @@ pickle.dump(total_tech.str.lower(), open("Survey Data/languages.pkl",'wb'))
 language_size = total_tech.reset_index().groupby('index')[0].size().rename("num_lang")
 survey_combined = pd.concat([survey_combined, language_size], axis=1)
 survey_combined.rename(columns={0:"num languages"})
-survey_combined.to_csv("Survey Data/survey_combined.csv")
+
 
 for df in [survey2011, survey2012, survey2013, survey2014, survey2015, survey2016]:
     print("Australasia" in df.country.unique(), "Australia" in df.country.unique())
@@ -368,6 +368,34 @@ country_salary = survey2016.groupby('country').apply(lambda x: pd.Series([
 
 country_salary.to_csv("output/salary_gdp2016.csv")
 
-regdata = survey_combined[['yrs_exp','country', 'salary_midpoint']].dropna()
 
-lm.fit(pd.get_dummies(regdata[['yrs_exp','country', '']]),regdata['salary_midpoint'])
+merge_wb = world_bank[['1990 [YR1990]', '2000 [YR2000]', '2007 [YR2007]',
+       '2008 [YR2008]', '2009 [YR2009]', '2010 [YR2010]', '2011 [YR2011]', '2012 [YR2012]', '2013 [YR2013]',
+       '2014 [YR2014]', '2015 [YR2015]', '2016 [YR2016]', 'country']]
+
+merge_wb = pd.melt(merge_wb, id_vars='country')
+merge_wb['variable'] = merge_wb['variable'].str[:4].astype(int)
+merge_wb.rename(columns={'variable':'year', 'value': 'country_gdp'}, inplace=True)
+
+survey_combined = pd.merge(survey_combined, merge_wb, how='left', on=['country','year'])
+
+survey_combined.to_csv("Survey Data/survey_combined.csv")
+
+
+dependent = "salary_midpoint"
+
+explanatory = ["age", "industry", "num_lang"]
+
+regdata = survey_combined[explanatory + [dependent]]
+
+
+from sklearn import linear_model
+lm = linear_model.LinearRegression()
+ix = total_tech[total_tech == 'C++'].index.get_level_values(0)
+regdata['lang'] = 0
+regdata.ix[ix, 'lang'] = 1
+regdata.dropna(inplace=True)
+X = pd.get_dummies(regdata[explanatory + ['lang']])
+X.head()
+y = regdata[dependent]
+lm.fit(X,y)
